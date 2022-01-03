@@ -1,0 +1,46 @@
+#!/bin/bash
+
+mkdir -p "${XDG_CACHE_HOME:-'$HOME/.cache'}/nyaa"
+temp="${XDG_CACHE_HOME:-'$HOME/.cache'}/nyaa"
+url="https://nyaa.si"
+
+trap "rm -rf $temp" SIGINT SIGTERM ERR EXIT
+filter=2
+
+while getopts q:ad flag; do
+  case "${flag}" in
+    q) query=${OPTARG};;
+    a) filter=0;;
+  esac
+done
+
+if [ -z "$query" ]; then
+  query=$(pmenu -p "Search Torrent: ")
+  if [ -z "$query" ]; then
+    exit 0;
+  fi
+fi
+
+query="$(echo $query | sed 's/ /+/g')"
+curl -s "$url/?f=$filter&q=$query" > $temp/html
+
+grep -o '<a href="/view/.*</a>' $temp/html | sed 's/<[^>]*>//g' > $temp/titles
+
+results=$(wc -l $temp/titles | cut -d " " -f 1)
+if [ $results -lt 1 ]; then
+  echo No results
+  exit 0
+fi
+
+grep -Po 'magnet:\?xt=urn:btih:[^"]*' $temp/html > $temp/magnets
+
+magnet=$(paste $temp/titles $temp/magnets | pmenu | cut -f 2)
+if [ -z "$magnet" ]; then
+  echo Nothing selected
+  exit 0
+fi
+
+mkdir -p $HOME/Downloads
+aria2c "$magnet" --seed-time 0 -d $HOME/Downloads
+echo Enjoy watching!
+
