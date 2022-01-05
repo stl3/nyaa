@@ -3,14 +3,17 @@
 mkdir -p "${XDG_CACHE_HOME:-'$HOME/.cache'}/nyaa"
 temp="${XDG_CACHE_HOME:-'$HOME/.cache'}/nyaa"
 url="https://nyaa.si"
+dir=${NYAA_DIR:-"$HOME/Downloads"}
+filter=1
 
 trap "rm -rf $temp" SIGINT SIGTERM ERR EXIT
-filter=2
 
-while getopts q:ad flag; do
+while getopts axd:q: flag; do
   case "${flag}" in
-    q) query=${OPTARG};;
     a) filter=0;;
+    x) url="https://sukebei.nyaa.si";;
+    d) dir=${OPTARG};;
+    q) query=${OPTARG};;
   esac
 done
 
@@ -22,7 +25,7 @@ if [ -z "$query" ]; then
 fi
 
 query="$(echo $query | sed 's/ /+/g')"
-curl -s "$url/?f=$filter&q=$query" > $temp/html
+curl -s "$url/?s=seeders&f=$filter&q=$query" > $temp/html
 
 grep -o '<a href="/view/.*</a>' $temp/html | sed 's/<[^>]*>//g' > $temp/titles
 
@@ -40,7 +43,14 @@ if [ -z "$magnet" ]; then
   exit 0
 fi
 
-mkdir -p $HOME/Downloads
-aria2c "$magnet" --seed-time 0 -d $HOME/Downloads
+mkdir -p $dir
+
+if command -v webtorrent 2> /dev/null
+then
+  webtorrent "$magnet" -o $dir
+else
+  aria2c "$magnet" --seed-time 0 -d $dir
+fi
+
 echo Enjoy watching!
 
